@@ -1,4 +1,5 @@
 pub mod Task {
+  use Util.Json.FromJson.FromJson
 
   pub enum Task({
     title = String,
@@ -6,6 +7,14 @@ pub mod Task {
     status = StatusSelf,
     dependsOn = Option[Nel[Task]]
   })
+
+  instance FromJson[Task] {
+    pub def fromJson(j: Json): Result[JsonError, Task] = match j {
+      case JObject(t) => forA (
+        title <- fromJson.getAtKey("title", json)
+      )
+    }
+  }
 
   pub def newTask(title: String, description: Option[String],
               status: StatusSelf, dependsOn: Option[Nel[Task]]): Task =
