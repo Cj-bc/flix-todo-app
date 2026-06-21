@@ -1,3 +1,7 @@
+\#*
+*~
+.#*
+
 *.fpkg
 *.jar
 .GITHUB_TOKEN
