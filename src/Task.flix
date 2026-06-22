@@ -32,7 +32,7 @@ pub mod Task {
   pub enum StatusSelf {
     case NotPlanned
     case Later
-    case Scheduled(LocalDateTime)
+    // case Scheduled(LocalDateTime)
     case Done
   }
 
