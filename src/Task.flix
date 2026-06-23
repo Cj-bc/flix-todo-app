@@ -1,5 +1,8 @@
 pub mod Task {
   use Functor.map
+  use Util.Json
+  use Util.Json.Json.{JObject, JString}
+  use Util.Json.ToJson.{ToJson}
 
   pub enum Task({
     id = TaskId,
@@ -34,6 +37,15 @@ pub mod Task {
     case Later
     // case Scheduled(LocalDateTime)
     case Done
+  }
+
+  instance ToJson[StatusSelf] {
+    pub def toJson(x: StatusSelf): Json =
+      JObject(Map#{"$type" => JString("StatusSelf"), "value" => match (x) {
+        case StatusSelf.NotPlanned => JString("NotPlanned")
+        case StatusSelf.Later => JString("Later")
+        case StatusSelf.Done => JString("Done")
+      }})
   }
 
   pub enum StatusPropagated {
