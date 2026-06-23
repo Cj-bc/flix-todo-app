@@ -12,7 +12,7 @@
       let pkgs = import nixpkgs { system = system; overlays = [ ]; };
       in { 
         packages.${system}.default = pkgs.stdenv.mkDerivation {
-          name = "atproto.flix";
+          name = "flix-todo-app";
           version = "0.1.0";
           src = "src";
           buildInputs = [ flix.packages.${system}.flix_0_73_0 ];
