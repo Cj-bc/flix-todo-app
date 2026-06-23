@@ -2,7 +2,10 @@ pub mod Task {
   use Functor.map
   use Util.Json
   use Util.Json.Json.{JObject, JString}
+  use Util.Json.JsonError.{JsonError, DecodeErrorKind}
+  use Util.Json.FromJson.{FromJson, decodeAtKey, decodeAtKeyOpt}
   use Util.Json.ToJson.{ToJson}
+  use Util.Json.JsonPath.{JsonPath, JsonStep}
 
   pub enum Task({
     id = TaskId,
@@ -37,6 +40,25 @@ pub mod Task {
     case Later
     // case Scheduled(LocalDateTime)
     case Done
+  }
+
+  def guard(f: Unit -> Bool \ ef, path: JsonPath): Result[JsonError, Unit] \ ef =
+    if (f()) Ok(()) else Err(JsonError.Decode(path, DecodeErrorKind.TypeMismatch("")))
+
+  instance FromJson[StatusSelf] {
+    pub def fromJson(j: Json): Result[JsonError, StatusSelf] =
+      forM (
+        vtype <- decodeAtKey("$type", j);
+        _ <- guard(() -> vtype == "StatusSelf",
+                   JsonPath(List#{JsonStep.Key("$type")}));
+        v <- decodeAtKey("value", j)
+      ) yield (match (v) {
+        case  "NotPlanned" => StatusSelf.NotPlanned
+        case  "Later" => StatusSelf.Later
+        // case  "Scheduled" => 
+        case  "Done" => StatusSelf.Done
+        case _ => StatusSelf.NotPlanned // TODO
+      })
   }
 
   instance ToJson[StatusSelf] {
