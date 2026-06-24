@@ -35,7 +35,7 @@ pub mod Task {
   pub def withStatus(task: Task, status: StatusSelf): Task = let Task(v) = task; Task({ status = status | v})
   pub def withDependsOn(task: Task, dependsOn: Option[Nel[Task]]): Task = let Task(v) = task; Task({ dependsOn = map(map(taskId), dependsOn) | v})
 
-  pub enum StatusSelf {
+  pub enum StatusSelf with Eq, Order, ToString {
     case NotPlanned
     case Later
     // case Scheduled(LocalDateTime)
@@ -45,20 +45,25 @@ pub mod Task {
   def guard(f: Unit -> Bool \ ef, path: JsonPath): Result[JsonError, Unit] \ ef =
     if (f()) Ok(()) else Err(JsonError.Decode(path, DecodeErrorKind.TypeMismatch("")))
 
+  def strToStatusSelf(s: String, err: err): Result[err, StatusSelf] =
+    match (s) {
+      case  "NotPlanned" => Ok(StatusSelf.NotPlanned)
+      case  "Later" => Ok(StatusSelf.Later)
+      // case  "Scheduled" => 
+      case  "Done" => Ok(StatusSelf.Done)
+      case _ => Err(err)
+    }
+
   instance FromJson[StatusSelf] {
     pub def fromJson(j: Json): Result[JsonError, StatusSelf] =
       forM (
         vtype <- decodeAtKey("$type", j);
         _ <- guard(() -> vtype == "StatusSelf",
                    JsonPath(List#{JsonStep.Key("$type")}));
-        v <- decodeAtKey("value", j)
-      ) yield (match (v) {
-        case  "NotPlanned" => StatusSelf.NotPlanned
-        case  "Later" => StatusSelf.Later
-        // case  "Scheduled" => 
-        case  "Done" => StatusSelf.Done
-        case _ => StatusSelf.NotPlanned // TODO
-      })
+        v <- decodeAtKey("value", j);
+        status <- strToStatusSelf(v, 
+          JsonError.Decode(JsonPath(List#{JsonStep.Key("value")}), DecodeErrorKind.TypeMismatch("")))
+      ) yield status
   }
 
   instance ToJson[StatusSelf] {
