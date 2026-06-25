@@ -1,11 +1,11 @@
 pub mod Task {
-  use Functor.map
+  use Functor.{map, <$>}
   use Util.Json
-  use Util.Json.Json.{JObject, JString}
+  use Util.Json.Json.{JObject, JString, JNumber}
   use Util.Json.JsonError.{JsonError, DecodeErrorKind}
   use Util.Json.FromJson.{FromJson, decodeAtKey, decodeAtKeyOpt}
   use Util.Json.ToJson.{ToJson}
-  use Util.Json.JsonPath.{JsonPath, JsonStep}
+  use Util.Json.JsonPath.{JsonPath, JsonStep, empty}
 
   pub enum Task({
     id = TaskId,
@@ -16,6 +16,14 @@ pub mod Task {
   })
 
   pub enum TaskId(Int64)
+
+  instance FromJson[TaskId] {
+    pub def fromJson(j: Json): Result[JsonError, TaskId] =
+      match (j) {
+        case JNumber(n) => TaskId.TaskId <$> (BigDecimal.tryToInt64(n) |> Option.toOk(JsonError.Decode(empty(), DecodeErrorKind.TypeMismatch(""))))
+        case _ => Err(JsonError.Decode(empty(), DecodeErrorKind.TypeMismatch("")))
+      }
+  }
 
   pub def newTask(title: String, description: Option[String],
               status: StatusSelf, dependsOn: Option[Nel[Task]]): Task =
@@ -34,6 +42,19 @@ pub mod Task {
   pub def withDescription(task: Task, description: Option[String]): Task = let Task(v) = task; Task({ description = description | v})
   pub def withStatus(task: Task, status: StatusSelf): Task = let Task(v) = task; Task({ status = status | v})
   pub def withDependsOn(task: Task, dependsOn: Option[Nel[Task]]): Task = let Task(v) = task; Task({ dependsOn = map(map(taskId), dependsOn) | v})
+
+  instance FromJson[Task] {
+    pub def fromJson(j: Json): Result[JsonError, Task] =
+      forM (
+        id <- decodeAtKey("id", j);
+        title <- decodeAtKey("title", j);
+        description <- decodeAtKey("description", j);
+        status <- decodeAtKey("status", j);
+        dependsOn <- List.toNel <$> decodeAtKey("dependsOn", j)
+      ) yield Task({id = TaskId.TaskId(id), title = title, description = description, status = status, dependsOn = dependsOn})
+
+
+  }
 
   pub enum StatusSelf with Eq, Order, ToString {
     case NotPlanned
