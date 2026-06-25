@@ -4,7 +4,7 @@ pub mod Task {
   use Util.Json.Json.{JObject, JString, JNumber}
   use Util.Json.JsonError.{JsonError, DecodeErrorKind}
   use Util.Json.FromJson.{FromJson, decodeAtKey, decodeAtKeyOpt}
-  use Util.Json.ToJson.{ToJson}
+  use Util.Json.ToJson.{ToJson, toJson}
   use Util.Json.JsonPath.{JsonPath, JsonStep, empty}
 
   pub enum Task({
@@ -23,6 +23,10 @@ pub mod Task {
         case JNumber(n) => TaskId.TaskId <$> (BigDecimal.tryToInt64(n) |> Option.toOk(JsonError.Decode(empty(), DecodeErrorKind.TypeMismatch(""))))
         case _ => Err(JsonError.Decode(empty(), DecodeErrorKind.TypeMismatch("")))
       }
+  }
+
+  instance ToJson[TaskId] {
+    pub def toJson(x: TaskId): Json = let TaskId.TaskId(n) = x; toJson(n)
   }
 
   pub def newTask(title: String, description: Option[String],
@@ -52,8 +56,15 @@ pub mod Task {
         status <- decodeAtKey("status", j);
         dependsOn <- List.toNel <$> decodeAtKey("dependsOn", j)
       ) yield Task({id = TaskId.TaskId(id), title = title, description = description, status = status, dependsOn = dependsOn})
+  }
 
-
+  instance ToJson[Task] {
+    pub def toJson(x: Task): Json =
+      JObject(Map#{"id" => toJson(taskId(x))
+                  , "title" => toJson(title(x))
+                  , "description" => toJson(x |> description |> Option.getWithDefault(""))
+                  , "status" => toJson(x |> status)
+                  , "dependsOn" => toJson(x |> dependsOn |> map(Nel.toList) |> Option.getWithDefault(List#{}))})
   }
 
   pub enum StatusSelf with Eq, Order, ToString {
