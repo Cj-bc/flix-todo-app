@@ -87,30 +87,48 @@ mod Cli {
 
   // ----- Command dispatch -----
 
+  /// Split `s` into its first whitespace-delimited word and the remaining text.
+  def splitFirstWord(s: String): (String, String) =
+    let t = String.trim(s);
+    match String.indexOfLeft({ substr = " " }, t) {
+      case None    => (t, "")
+      case Some(i) => (String.takeLeft(i, t), String.dropLeft(i, t) |> String.trim)
+    }
+
   def handle(line: String): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } =
-    if (String.startsWith({ prefix = "add " }, line))
-      match addTask(String.dropLeft(4, line) |> String.trim) {
-        case Ok(task) => Console.println("added: ${renderTask(task)}")
-        case Err(_)   => Console.println("could not add task")
-      }
-    else if (line == "list")
+    let (cmd, arg) = splitFirstWord(line);
+    if (cmd == "add")
+      if (String.isEmpty(arg))
+        Console.println("usage: add <title>")
+      else
+        match addTask(arg) {
+          case Ok(task) => Console.println("added: ${renderTask(task)}")
+          case Err(_)   => Console.println("could not add task")
+        }
+    else if (cmd == "list")
       printTasks(listTasks())
-    else if (String.startsWith({ prefix = "done " }, line))
-      withId(String.dropLeft(5, line), id ->
-        match completeTask(id) {
-          case Ok(())   => Console.println("done: ${id}")
-          case Err(msg) => Console.println(msg)
-        })
-    else if (String.startsWith({ prefix = "rm " }, line))
-      withId(String.dropLeft(3, line), id ->
-        match removeTask(id) {
-          case Ok(())   => Console.println("removed: ${id}")
-          case Err(msg) => Console.println(msg)
-        })
-    else if (line == "help")
+    else if (cmd == "done")
+      if (String.isEmpty(arg))
+        Console.println("usage: done <id>")
+      else
+        withId(arg, id ->
+          match completeTask(id) {
+            case Ok(())   => Console.println("done: ${id}")
+            case Err(msg) => Console.println(msg)
+          })
+    else if (cmd == "rm")
+      if (String.isEmpty(arg))
+        Console.println("usage: rm <id>")
+      else
+        withId(arg, id ->
+          match removeTask(id) {
+            case Ok(())   => Console.println("removed: ${id}")
+            case Err(msg) => Console.println(msg)
+          })
+    else if (cmd == "help")
       printHelp()
     else
-      Console.println("unknown command: '${line}' (type 'help')")
+      Console.println("unknown command: '${cmd}' (type 'help')")
 
   // ----- REPL -----
 
