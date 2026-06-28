@@ -29,11 +29,11 @@ pub mod Task {
     pub def toJson(x: TaskId): Json = let TaskId.TaskId(n) = x; toJson(n)
   }
 
-  pub def newTask(title: String, description: Option[String],
+  pub def newTask(id: Int64, title: String, description: Option[String],
               status: StatusSelf, dependsOn: Option[Nel[Task]]): Task =
     Task({title = title, description = description
          , status = status, dependsOn = map(map(taskId), dependsOn)
-         , id = TaskId.TaskId(-1i64)})
+         , id = TaskId.TaskId(id)})
 
   // getters
   pub def taskId(task: Task): TaskId = let Task(v) = task; v#id
