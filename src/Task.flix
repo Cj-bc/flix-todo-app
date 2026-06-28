@@ -42,10 +42,10 @@ pub mod Task {
   pub def status(task: Task): StatusSelf = let Task(v) = task; v#status
   pub def dependsOn(task: Task): Option[Nel[TaskId]] = let Task(v) = task; v#dependsOn
 
-  pub def withTitle(task: Task, title: String): Task = let Task(v) = task; Task({ title = title | v})
-  pub def withDescription(task: Task, description: Option[String]): Task = let Task(v) = task; Task({ description = description | v})
-  pub def withStatus(task: Task, status: StatusSelf): Task = let Task(v) = task; Task({ status = status | v})
-  pub def withDependsOn(task: Task, dependsOn: Option[Nel[Task]]): Task = let Task(v) = task; Task({ dependsOn = map(map(taskId), dependsOn) | v})
+  pub def withTitle(title: String, task: Task): Task = let Task(v) = task; Task({ title = title | v})
+  pub def withDescription(description: Option[String], task: Task): Task = let Task(v) = task; Task({ description = description | v})
+  pub def withStatus(status: StatusSelf, task: Task): Task = let Task(v) = task; Task({ status = status | v})
+  pub def withDependsOn(dependsOn: Option[Nel[Task]], task: Task): Task = let Task(v) = task; Task({ dependsOn = map(map(taskId), dependsOn) | v})
 
   instance FromJson[Task] {
     pub def fromJson(j: Json): Result[JsonError, Task] =
