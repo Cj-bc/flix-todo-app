@@ -15,7 +15,7 @@ pub mod Task {
     dependsOn = Option[Nel[TaskId]]
   })
 
-  pub enum TaskId(Int64)
+  pub enum TaskId(Int64) with Eq, Order
 
   instance FromJson[TaskId] {
     pub def fromJson(j: Json): Result[JsonError, TaskId] =

@@ -19,10 +19,14 @@ mod Cli {
   use TaskRepository.DeleteTask
   use TaskRepository.TaskRepositoryError.TaskRepositoryError
 
-  /// Raw Int64 behind a TaskId (TaskId has no Eq/Order instance).
+  /// Raw Int64 behind a TaskId, for display.
   def idValue(task: Task): Int64 =
     let TaskId.TaskId(n) = Task.taskId(task);
     n
+
+  /// Look up a single task by its raw Int64 id, using `Eq[TaskId]`.
+  def findById(id: Int64): Option[Task] \ QueryTasks =
+    QueryTasks.queryTasks(t -> Task.taskId(t) == TaskId.TaskId(id)) |> List.head
 
   // ----- Use cases (effect rows declare the required capabilities) -----
 
@@ -36,14 +40,14 @@ mod Cli {
 
   /// Needs to read a task and then write it back.
   pub def completeTask(id: Int64): Result[String, Unit] \ { QueryTasks, UpdateTask } =
-    match QueryTasks.queryTasks(t -> idValue(t) == id) |> List.head {
+    match findById(id) {
       case Some(task) => Ok(UpdateTask.updateTask(task |> Task.withStatus(StatusSelf.Done)))
       case None       => Err("no task with id ${id}")
     }
 
   /// Needs to read a task and then delete it.
   pub def removeTask(id: Int64): Result[String, Unit] \ { QueryTasks, DeleteTask } =
-    match QueryTasks.queryTasks(t -> idValue(t) == id) |> List.head {
+    match findById(id) {
       case Some(task) => match DeleteTask.deleteTask(task) {
         case None    => Ok(())
         case Some(_) => Err("could not delete task ${id}")
