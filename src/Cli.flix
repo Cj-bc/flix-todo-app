@@ -6,10 +6,14 @@
 ///     capabilities it needs (e.g. `listTasks` only `QueryTasks`,
 ///     `completeTask` both `QueryTasks` and `UpdateTask`). The compiler then
 ///     guarantees a use case cannot perform an operation it was not granted.
-///   * Input/output is itself the `Sys.Console.Console` capability, handled at
-///     the edge in `Main` via `Sys.Console.runWithIO`.
+///   * All output is produced through a `Renderer`: the frontend builds an
+///     `AppState` describing what to show and hands it to `Renderer.render`,
+///     so it is generic over any renderer rather than tied to one. The console
+///     renderer is supplied at the edge in `Main`.
 mod Cli {
   use Sys.Console.Console
+  use Plugin.Renderer.Renderer
+  use AppState.AppState
   use Task.Task
   use Task.TaskId
   use Task.StatusSelf
@@ -18,11 +22,6 @@ mod Cli {
   use TaskRepository.UpdateTask
   use TaskRepository.DeleteTask
   use TaskRepository.TaskRepositoryError.TaskRepositoryError
-
-  /// Raw Int64 behind a TaskId, for display.
-  def idValue(task: Task): Int64 =
-    let TaskId.TaskId(n) = Task.taskId(task);
-    n
 
   /// Look up a single task by its raw Int64 id, using `Eq[TaskId]`.
   def findById(id: Int64): Option[Task] \ QueryTasks =
@@ -57,36 +56,15 @@ mod Cli {
 
   // ----- Rendering -----
 
-  def statusLabel(s: StatusSelf): String = match s {
-    case StatusSelf.NotPlanned => "[ ]"
-    case StatusSelf.Later      => "[~]"
-    case StatusSelf.Done       => "[x]"
-  }
-
-  def renderTask(task: Task): String =
-    "${statusLabel(Task.status(task))} ${idValue(task)}: ${Task.title(task)}"
-
-  def printTasks(tasks: List[Task]): Unit \ Console =
-    if (List.isEmpty(tasks))
-      Console.println("  (no tasks)")
-    else
-      List.forEach(t -> Console.println("  ${renderTask(t)}"), tasks)
-
-  def printHelp(): Unit \ Console = {
-    Console.println("commands:");
-    Console.println("  add <title>   add a task");
-    Console.println("  list          list all tasks");
-    Console.println("  done <id>     mark a task as done");
-    Console.println("  rm <id>       delete a task");
-    Console.println("  help          show this help");
-    Console.println("  quit          exit")
-  }
+  /// Draw one application state through the supplied renderer.
+  def show(renderer: r, state: AppState): Unit \ Renderer.Aef[r] with Renderer[r] =
+    Renderer.render(renderer, state)
 
   /// Parse an Int64 id from `s`, then run `k`, or report a parse error.
-  def withId(s: String, k: Int64 -> Unit \ ef): Unit \ ef + Console =
+  def withId(renderer: r, s: String, k: Int64 -> Unit \ ef): Unit \ ef + Renderer.Aef[r] with Renderer[r] =
     match Int64.fromString(String.trim(s)) {
       case Some(id) => k(id)
-      case None     => Console.println("not a valid id: '${String.trim(s)}'")
+      case None     => show(renderer, AppState.Message("not a valid id: '${String.trim(s)}'"))
     }
 
   // ----- Command dispatch -----
@@ -99,62 +77,63 @@ mod Cli {
       case Some(i) => (String.takeLeft(i, t), String.dropLeft(i, t) |> String.trim)
     }
 
-  def handle(line: String): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } =
+  def handle(renderer: r, line: String): Unit \ { CreateTask, QueryTasks, UpdateTask, DeleteTask } + Renderer.Aef[r] with Renderer[r] =
     let (cmd, arg) = splitFirstWord(line);
     if (cmd == "add")
       if (String.isEmpty(arg))
-        Console.println("usage: add <title>")
+        show(renderer, AppState.Message("usage: add <title>"))
       else
         match addTask(arg) {
-          case Ok(task) => Console.println("added: ${renderTask(task)}")
-          case Err(_)   => Console.println("could not add task")
+          case Ok(task) => show(renderer, AppState.Added(task))
+          case Err(_)   => show(renderer, AppState.Message("could not add task"))
         }
     else if (cmd == "list")
-      printTasks(listTasks())
+      show(renderer, AppState.TaskList(listTasks()))
     else if (cmd == "done")
       if (String.isEmpty(arg))
-        Console.println("usage: done <id>")
+        show(renderer, AppState.Message("usage: done <id>"))
       else
-        withId(arg, id ->
+        withId(renderer, arg, id ->
           match completeTask(id) {
-            case Ok(())   => Console.println("done: ${id}")
-            case Err(msg) => Console.println(msg)
+            case Ok(())   => show(renderer, AppState.Message("done: ${id}"))
+            case Err(msg) => show(renderer, AppState.Message(msg))
           })
     else if (cmd == "rm")
       if (String.isEmpty(arg))
-        Console.println("usage: rm <id>")
+        show(renderer, AppState.Message("usage: rm <id>"))
       else
-        withId(arg, id ->
+        withId(renderer, arg, id ->
           match removeTask(id) {
-            case Ok(())   => Console.println("removed: ${id}")
-            case Err(msg) => Console.println(msg)
+            case Ok(())   => show(renderer, AppState.Message("removed: ${id}"))
+            case Err(msg) => show(renderer, AppState.Message(msg))
           })
     else if (cmd == "help")
-      printHelp()
+      show(renderer, AppState.Help)
     else
-      Console.println("unknown command: '${cmd}' (type 'help')")
+      show(renderer, AppState.Message("unknown command: '${cmd}' (type 'help')"))
 
   // ----- REPL -----
 
-  def loop(): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } = {
-    Console.print("> ");
+  def loop(renderer: r): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } + Renderer.Aef[r] with Renderer[r] = {
+    show(renderer, AppState.Prompt);
     match Console.readln() {
-      case None => Console.println("bye")
+      case None => show(renderer, AppState.Goodbye)
       case Some(raw) =>
         let line = String.trim(raw);
         if (line == "quit" or line == "exit")
-          Console.println("bye")
+          show(renderer, AppState.Goodbye)
         else {
-          (if (String.isEmpty(line)) () else handle(line));
-          loop()
+          (if (String.isEmpty(line)) () else handle(renderer, line));
+          loop(renderer)
         }
     }
   }
 
   /// Entry point of the frontend. Assumes the four TaskRepository effects are
-  /// already supplied by an interpreter (see `TaskRepository.InMemory`).
-  pub def start(): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } = {
-    Console.println("flix-todo - type 'help' for commands");
-    loop()
+  /// already supplied by an interpreter (see `TaskRepository.InMemory`) and is
+  /// given a `Renderer` to drive all output.
+  pub def start(renderer: r): Unit \ { Console, CreateTask, QueryTasks, UpdateTask, DeleteTask } + Renderer.Aef[r] with Renderer[r] = {
+    show(renderer, AppState.Welcome);
+    loop(renderer)
   }
 }
