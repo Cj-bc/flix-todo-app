@@ -1,3 +1,5 @@
+use ExternalPlugins.CliRenderer.CliRenderer
+
 /// The main entry point.
 ///
 /// Resolves every effect the CLI frontend performs by chaining handler
@@ -6,6 +8,6 @@
 /// Console capability.
 def main(): Unit \ IO =
     run {
-        Cli.start()
+        Cli.start(CliRenderer.CliRenderer)
     } with TaskRepository.InMemory.runInMemory
       with Sys.Console.runWithIO
